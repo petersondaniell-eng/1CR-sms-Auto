@@ -40,7 +40,19 @@
       "Grep(*)",
       "Bash(npx react-native:*)",
       "Bash(npx @react-native-community/cli:*)",
-      "Read(//c/Users/Owner/Desktop/App Development/**)"
+      "Read(//c/Users/Owner/Desktop/App Development/**)",
+      "Bash(git tag:*)",
+      "Bash(where java)",
+      "Bash(set JAVA_HOME=C:Program FilesJavajdk-25)",
+      "Bash(set PATH=%JAVA_HOME%bin)",
+      "Bash(%PATH%)",
+      "Bash(gradlew.bat assembleDebug:*)",
+      "Bash(export:*)",
+      "Bash(export PATH=\"$JAVA_HOME/bin:$PATH\")",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-25\" ./gradlew clean)",
+      "Read(//c/Program Files/Java/**)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-25\" ./gradlew assembleDebug)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-25\" ./gradlew assembleDebug --warning-mode all)"
     ],
     "deny": [
       "Bash(rm:*)",
