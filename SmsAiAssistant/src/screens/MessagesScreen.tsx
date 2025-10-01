@@ -191,12 +191,20 @@ const MessagesScreen = () => {
           <View style={styles.smsAppBanner}>
             <View style={styles.smsAppBannerContent}>
               <Text style={styles.smsAppBannerText}>
-                📱 To receive incoming messages, set this app as your default SMS app
+                📱 To receive incoming messages, set this app as your default SMS app{'\n'}
+                {'\n'}
+                <Text style={styles.smsAppBannerInstructions}>
+                  Manual Steps:{'\n'}
+                  1. Open Android Settings{'\n'}
+                  2. Go to Apps → Default apps{'\n'}
+                  3. Tap SMS app{'\n'}
+                  4. Select "SMS AI Assistant"
+                </Text>
               </Text>
               <TouchableOpacity
                 style={styles.smsAppBannerButton}
                 onPress={handleSetDefaultSmsApp}>
-                <Text style={styles.smsAppBannerButtonText}>Set as Default</Text>
+                <Text style={styles.smsAppBannerButtonText}>Try Auto-Set</Text>
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -327,6 +335,12 @@ const styles = StyleSheet.create({
     color: '#92400E',
     marginBottom: Spacing.sm,
     lineHeight: 18,
+  },
+  smsAppBannerInstructions: {
+    fontSize: FontSizes.xs,
+    color: '#78350F',
+    fontWeight: '600',
+    lineHeight: 16,
   },
   smsAppBannerButton: {
     backgroundColor: '#F59E0B',

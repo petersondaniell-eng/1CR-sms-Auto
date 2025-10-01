@@ -441,23 +441,48 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
                 val activity = reactApplicationContext.currentActivity
                 if (activity == null) {
                     promise.reject("ERROR", "No activity available")
+                    Log.e(TAG, "No activity available for SMS app request")
                     return
                 }
 
                 val defaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(reactApplicationContext)
-                if (defaultSmsPackage != reactApplicationContext.packageName) {
-                    val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT).apply {
-                        putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, reactApplicationContext.packageName)
+                val ourPackage = reactApplicationContext.packageName
+
+                Log.d(TAG, "Current default SMS package: $defaultSmsPackage")
+                Log.d(TAG, "Our package name: $ourPackage")
+
+                if (defaultSmsPackage != ourPackage) {
+                    try {
+                        val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
+                        intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, ourPackage)
+
+                        // Try to start the activity
+                        activity.startActivity(intent)
+
+                        promise.resolve(true)
+                        Log.d(TAG, "Started ACTION_CHANGE_DEFAULT intent")
+                    } catch (activityException: Exception) {
+                        Log.e(TAG, "Failed to start ACTION_CHANGE_DEFAULT: ${activityException.message}", activityException)
+
+                        // Fallback: Open app settings if the intent doesn't work
+                        try {
+                            val settingsIntent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                            settingsIntent.data = Uri.parse("package:$ourPackage")
+                            activity.startActivity(settingsIntent)
+                            promise.resolve(true)
+                            Log.d(TAG, "Opened app settings as fallback")
+                        } catch (settingsException: Exception) {
+                            Log.e(TAG, "Failed to open settings: ${settingsException.message}", settingsException)
+                            promise.reject("ERROR", "Could not open SMS settings: ${settingsException.message}")
+                        }
                     }
-                    activity.startActivity(intent)
-                    promise.resolve(true)
-                    Log.d(TAG, "Requested default SMS app change")
                 } else {
                     promise.resolve(true)
                     Log.d(TAG, "Already default SMS app")
                 }
             } else {
                 promise.resolve(true)
+                Log.d(TAG, "Android version < KitKat, no default SMS app concept")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error requesting default SMS app: ${e.message}", e)
