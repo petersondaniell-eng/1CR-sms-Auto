@@ -23,12 +23,16 @@ function App() {
       await settingsService.loadSettings();
       console.log('Settings loaded successfully');
 
-      // Start background service if auto-reply is enabled
-      const settings = await settingsService.getSettings();
-      if (settings.autoReplyEnabled) {
-        await SmsModule.startBackgroundService();
-        console.log('Background service started');
+      // Request SMS permissions on first launch
+      const permissions = await SmsModule.checkSmsPermissions();
+      if (!permissions.allGranted) {
+        console.log('Requesting SMS permissions...');
+        await SmsModule.requestSmsPermissions();
       }
+
+      // Start background service
+      await SmsModule.startBackgroundService();
+      console.log('Background service started');
 
       setIsReady(true);
     } catch (err) {

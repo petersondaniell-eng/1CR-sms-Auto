@@ -36,7 +36,7 @@ class ClaudeService {
       }
 
       // Build conversation context
-      const conversationContext = this.buildConversationContext(
+      const conversationContext = await this.buildConversationContext(
         messages,
         customInstructions
       );
@@ -98,7 +98,7 @@ class ClaudeService {
       }
 
       // Build conversation context
-      const textContext = this.buildConversationContext(messages, customInstructions);
+      const textContext = await this.buildConversationContext(messages, customInstructions);
 
       // Build content with image
       const content: ContentBlock[] = [
@@ -158,10 +158,10 @@ class ClaudeService {
   /**
    * Build conversation context for Claude
    */
-  private buildConversationContext(
+  private async buildConversationContext(
     messages: Message[],
     customInstructions?: string
-  ): string {
+  ): Promise<string> {
     const instructions = customInstructions || this.getDefaultInstructions();
 
     const conversationHistory = messages
@@ -171,7 +171,24 @@ class ClaudeService {
       })
       .join('\n');
 
-    return `${instructions}\n\nCONVERSATION HISTORY:\n${conversationHistory}\n\nPlease generate a professional, helpful response to the customer's most recent message. Keep it concise and focused on their needs.`;
+    // Get example conversations
+    const examplesJson = await AsyncStorage.getItem('exampleConversations');
+    let examplesSection = '';
+    if (examplesJson) {
+      try {
+        const examples = JSON.parse(examplesJson);
+        if (examples && examples.length > 0) {
+          examplesSection = '\n\nEXAMPLE CONVERSATIONS (for reference):\n';
+          examples.forEach((ex: any, index: number) => {
+            examplesSection += `\nExample ${index + 1}:\nCustomer: ${ex.customerMessage}\nIdeal Response: ${ex.idealResponse}\n`;
+          });
+        }
+      } catch (e) {
+        console.error('Error parsing examples:', e);
+      }
+    }
+
+    return `${instructions}${examplesSection}\n\nCONVERSATION HISTORY:\n${conversationHistory}\n\nPlease generate a professional, helpful response to the customer's most recent message. Keep it concise and focused on their needs. Use the example conversations as a reference for tone and style.`;
   }
 
   /**
