@@ -10,6 +10,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Modal,
+  ScrollView,
+  Clipboard,
 } from 'react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
@@ -33,13 +36,36 @@ const ConversationDetailScreen = () => {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [generatingAI, setGeneratingAI] = useState(false);
+  const [workOrderModalVisible, setWorkOrderModalVisible] = useState(false);
+  const [workOrderData, setWorkOrderData] = useState({
+    customerName: contactName || phoneNumber,
+    phoneNumber: phoneNumber,
+    address: '',
+    applianceType: '',
+    brand: '',
+    modelNumber: '',
+    issueDescription: '',
+  });
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
     loadMessages();
     // Mark conversation as read
     databaseService.markConversationAsRead(phoneNumber);
-  }, [phoneNumber]);
+
+    // Add Work Order button to header
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={handleCreateWorkOrder}
+          style={{ marginRight: 16, padding: 8 }}>
+          <Text style={{ color: Colors.primary, fontWeight: '600', fontSize: 16 }}>
+            Work Order
+          </Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [phoneNumber, navigation]);
 
   const loadMessages = async () => {
     try {
@@ -109,6 +135,70 @@ const ConversationDetailScreen = () => {
     }
   };
 
+  const handleCreateWorkOrder = () => {
+    // Extract information from conversation using simple pattern matching
+    const conversationText = messages.map(m => m.message_text).join(' ');
+
+    // Try to extract address (look for street numbers + street names)
+    const addressMatch = conversationText.match(/\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd)/i);
+    if (addressMatch) {
+      setWorkOrderData(prev => ({ ...prev, address: addressMatch[0] }));
+    }
+
+    // Try to extract appliance types
+    const applianceKeywords = ['refrigerator', 'fridge', 'washer', 'dryer', 'dishwasher', 'oven', 'stove', 'microwave'];
+    const foundAppliance = applianceKeywords.find(keyword =>
+      conversationText.toLowerCase().includes(keyword)
+    );
+    if (foundAppliance) {
+      setWorkOrderData(prev => ({ ...prev, applianceType: foundAppliance }));
+    }
+
+    // Try to extract issue description (last customer message)
+    const lastCustomerMsg = messages.filter(m => m.sender_type === 'customer').pop();
+    if (lastCustomerMsg) {
+      setWorkOrderData(prev => ({ ...prev, issueDescription: lastCustomerMsg.message_text }));
+    }
+
+    setWorkOrderModalVisible(true);
+  };
+
+  const handleCopyWorkOrder = () => {
+    const conversationHistory = messages
+      .map(m => {
+        const sender = m.sender_type === 'customer' ? 'Customer' : m.sender_type === 'ai' ? 'AI' : 'You';
+        const date = new Date(m.timestamp).toLocaleString();
+        return `[${date}] ${sender}: ${m.message_text}`;
+      })
+      .join('\n');
+
+    const workOrder = `WORK ORDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}
+
+CUSTOMER INFORMATION
+Name: ${workOrderData.customerName}
+Phone: ${workOrderData.phoneNumber}
+Address: ${workOrderData.address || 'Not provided'}
+
+APPLIANCE DETAILS
+Type: ${workOrderData.applianceType || 'Not specified'}
+Brand: ${workOrderData.brand || 'Not specified'}
+Model #: ${workOrderData.modelNumber || 'Not specified'}
+
+ISSUE DESCRIPTION
+${workOrderData.issueDescription || 'No description provided'}
+
+CONVERSATION HISTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${conversationHistory}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+    Clipboard.setString(workOrder);
+    Alert.alert('Success', 'Work order copied to clipboard!');
+    setWorkOrderModalVisible(false);
+  };
+
   const formatTimestamp = (timestamp: number): string => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -149,55 +239,148 @@ const ConversationDetailScreen = () => {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}>
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.messagesContainer}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No messages yet</Text>
-            <Text style={styles.emptySubtext}>Start the conversation!</Text>
-          </View>
-        }
-      />
-
-      <View style={styles.inputContainer}>
-        <TouchableOpacity
-          style={styles.aiButton}
-          onPress={handleGenerateAI}
-          disabled={generatingAI}>
-          <Text style={styles.aiButtonText}>
-            {generatingAI ? '⏳' : '🤖'}
-          </Text>
-        </TouchableOpacity>
-
-        <TextInput
-          style={styles.textInput}
-          value={inputText}
-          onChangeText={setInputText}
-          placeholder="Type a message..."
-          placeholderTextColor={Colors.textLight}
-          multiline
-          maxLength={1000}
+    <>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={90}>
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.messagesContainer}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No messages yet</Text>
+              <Text style={styles.emptySubtext}>Start the conversation!</Text>
+            </View>
+          }
         />
 
-        <TouchableOpacity
-          style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
-          onPress={handleSend}
-          disabled={!inputText.trim() || sending}>
-          <Text style={styles.sendButtonText}>
-            {sending ? '...' : 'Send'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+        <View style={styles.inputContainer}>
+          <TouchableOpacity
+            style={styles.aiButton}
+            onPress={handleGenerateAI}
+            disabled={generatingAI}>
+            <Text style={styles.aiButtonText}>
+              {generatingAI ? '⏳' : '🤖'}
+            </Text>
+          </TouchableOpacity>
+
+          <TextInput
+            style={styles.textInput}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Type a message..."
+            placeholderTextColor={Colors.textLight}
+            multiline
+            maxLength={1000}
+          />
+
+          <TouchableOpacity
+            style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
+            onPress={handleSend}
+            disabled={!inputText.trim() || sending}>
+            <Text style={styles.sendButtonText}>
+              {sending ? '...' : 'Send'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+
+      <Modal
+        visible={workOrderModalVisible}
+        animationType="slide"
+        onRequestClose={() => setWorkOrderModalVisible(false)}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Create Work Order</Text>
+            <TouchableOpacity onPress={() => setWorkOrderModalVisible(false)}>
+              <Text style={styles.modalCloseButton}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <Text style={styles.modalSectionTitle}>Customer Information</Text>
+
+            <Text style={styles.modalLabel}>Name</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={workOrderData.customerName}
+              onChangeText={(text) => setWorkOrderData(prev => ({ ...prev, customerName: text }))}
+              placeholder="Customer name"
+            />
+
+            <Text style={styles.modalLabel}>Phone</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={workOrderData.phoneNumber}
+              editable={false}
+            />
+
+            <Text style={styles.modalLabel}>Address</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={workOrderData.address}
+              onChangeText={(text) => setWorkOrderData(prev => ({ ...prev, address: text }))}
+              placeholder="Service address"
+            />
+
+            <Text style={styles.modalSectionTitle}>Appliance Details</Text>
+
+            <Text style={styles.modalLabel}>Type</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={workOrderData.applianceType}
+              onChangeText={(text) => setWorkOrderData(prev => ({ ...prev, applianceType: text }))}
+              placeholder="e.g., Refrigerator, Washer"
+            />
+
+            <Text style={styles.modalLabel}>Brand</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={workOrderData.brand}
+              onChangeText={(text) => setWorkOrderData(prev => ({ ...prev, brand: text }))}
+              placeholder="e.g., Samsung, LG"
+            />
+
+            <Text style={styles.modalLabel}>Model Number</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={workOrderData.modelNumber}
+              onChangeText={(text) => setWorkOrderData(prev => ({ ...prev, modelNumber: text }))}
+              placeholder="Model number if available"
+            />
+
+            <Text style={styles.modalSectionTitle}>Issue Description</Text>
+            <TextInput
+              style={[styles.modalInput, styles.modalTextArea]}
+              value={workOrderData.issueDescription}
+              onChangeText={(text) => setWorkOrderData(prev => ({ ...prev, issueDescription: text }))}
+              placeholder="Describe the issue"
+              multiline
+              numberOfLines={4}
+            />
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setWorkOrderModalVisible(false)}>
+              <Text style={styles.modalCancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCopyButton}
+              onPress={handleCopyWorkOrder}>
+              <Text style={styles.modalCopyButtonText}>Copy Work Order</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -318,6 +501,91 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: FontSizes.md,
     color: Colors.textLight,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    backgroundColor: Colors.primary,
+  },
+  modalTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  modalCloseButton: {
+    fontSize: 28,
+    color: '#FFFFFF',
+    fontWeight: '300',
+  },
+  modalContent: {
+    flex: 1,
+    padding: Spacing.lg,
+  },
+  modalSectionTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  modalLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  modalInput: {
+    backgroundColor: Colors.cardBackground,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+  },
+  modalTextArea: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.cardBackground,
+  },
+  modalCancelButton: {
+    flex: 1,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  modalCopyButton: {
+    flex: 1,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+  },
+  modalCopyButtonText: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

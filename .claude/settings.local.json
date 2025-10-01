@@ -62,7 +62,8 @@
       "Bash(keytool:*)",
       "Bash(\"/c/Program Files/Java/jdk-21/bin/keytool\" -genkeypair -v -storetype PKCS12 -keystore sms-ai-release.keystore -alias sms-ai-key -keyalg RSA -keysize 2048 -validity 10000 -storepass android123 -keypass android123 -dname \"CN=SMS AI Assistant, OU=Development, O=1CR, L=Unknown, S=Unknown, C=US\")",
       "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew assembleRelease)",
-      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew clean)"
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew clean)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew clean assembleRelease)"
     ],
     "deny": [
       "Bash(rm:*)",
