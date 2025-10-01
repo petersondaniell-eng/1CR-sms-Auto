@@ -44,6 +44,10 @@ export interface SmsModuleType {
   checkSmsPermissions(): Promise<SmsPermissions>;
   requestSmsPermissions(): Promise<boolean>;
 
+  // Default SMS app
+  isDefaultSmsApp(): Promise<boolean>;
+  requestDefaultSmsApp(): Promise<boolean>;
+
   // SMS operations
   sendSms(phoneNumber: string, message: string): Promise<boolean>;
 

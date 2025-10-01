@@ -29,6 +29,8 @@ const MessagesScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [newConversationModalVisible, setNewConversationModalVisible] = useState(false);
   const [phoneNumberInput, setPhoneNumberInput] = useState('');
+  const [isDefaultSmsApp, setIsDefaultSmsApp] = useState(true);
+  const [showSmsAppPrompt, setShowSmsAppPrompt] = useState(false);
 
   const loadConversations = async () => {
     try {
@@ -44,7 +46,32 @@ const MessagesScreen = () => {
 
   useEffect(() => {
     loadConversations();
+    checkDefaultSmsApp();
   }, []);
+
+  const checkDefaultSmsApp = async () => {
+    try {
+      const isDefault = await SmsModule.isDefaultSmsApp();
+      setIsDefaultSmsApp(isDefault);
+      if (!isDefault) {
+        setShowSmsAppPrompt(true);
+      }
+    } catch (error) {
+      console.error('Error checking default SMS app:', error);
+    }
+  };
+
+  const handleSetDefaultSmsApp = async () => {
+    try {
+      await SmsModule.requestDefaultSmsApp();
+      setShowSmsAppPrompt(false);
+      // Recheck after user interacts with settings
+      setTimeout(checkDefaultSmsApp, 1000);
+    } catch (error) {
+      console.error('Error requesting default SMS app:', error);
+      Alert.alert('Error', 'Failed to open SMS app settings');
+    }
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -160,6 +187,26 @@ const MessagesScreen = () => {
   return (
     <>
       <View style={styles.container}>
+        {showSmsAppPrompt && !isDefaultSmsApp && (
+          <View style={styles.smsAppBanner}>
+            <View style={styles.smsAppBannerContent}>
+              <Text style={styles.smsAppBannerText}>
+                📱 To receive incoming messages, set this app as your default SMS app
+              </Text>
+              <TouchableOpacity
+                style={styles.smsAppBannerButton}
+                onPress={handleSetDefaultSmsApp}>
+                <Text style={styles.smsAppBannerButtonText}>Set as Default</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.smsAppBannerClose}
+              onPress={() => setShowSmsAppPrompt(false)}>
+              <Text style={styles.smsAppBannerCloseText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <FlatList
           data={conversations}
           renderItem={renderConversation}
@@ -261,6 +308,45 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: Colors.background,
+  },
+  smsAppBanner: {
+    backgroundColor: '#FEF3C7',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F59E0B',
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  smsAppBannerContent: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  smsAppBannerText: {
+    fontSize: FontSizes.sm,
+    color: '#92400E',
+    marginBottom: Spacing.sm,
+    lineHeight: 18,
+  },
+  smsAppBannerButton: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    alignSelf: 'flex-start',
+  },
+  smsAppBannerButtonText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  smsAppBannerClose: {
+    padding: Spacing.xs,
+  },
+  smsAppBannerCloseText: {
+    fontSize: 20,
+    color: '#92400E',
+    fontWeight: '300',
   },
   listContainer: {
     padding: Spacing.md,

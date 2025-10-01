@@ -19,11 +19,16 @@ class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
         if (context == null || intent == null) return
 
-        Log.d(TAG, "SMS Received - Action: ${intent.action}")
+        Log.d(TAG, "Broadcast Received - Action: ${intent.action}")
 
         when (intent.action) {
-            Telephony.Sms.Intents.SMS_RECEIVED_ACTION -> {
+            Telephony.Sms.Intents.SMS_RECEIVED_ACTION,
+            Telephony.Sms.Intents.SMS_DELIVER_ACTION -> {
                 handleSmsReceived(context, intent)
+            }
+            Telephony.Sms.Intents.WAP_PUSH_DELIVER_ACTION -> {
+                Log.d(TAG, "MMS received - basic handling")
+                // MMS handling can be added later if needed
             }
         }
     }

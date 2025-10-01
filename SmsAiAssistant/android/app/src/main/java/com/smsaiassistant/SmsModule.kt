@@ -8,6 +8,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.provider.ContactsContract
+import android.provider.Telephony
 import android.telephony.SmsManager
 import android.util.Log
 import androidx.core.app.ActivityCompat
@@ -410,6 +411,57 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
             pickContactPromise?.reject("ERROR", "Failed to read contact: ${e.message}")
         } finally {
             pickContactPromise = null
+        }
+    }
+
+    // Check if app is default SMS app
+    @ReactMethod
+    fun isDefaultSmsApp(promise: Promise) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                val defaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(reactApplicationContext)
+                val isDefault = defaultSmsPackage == reactApplicationContext.packageName
+                promise.resolve(isDefault)
+                Log.d(TAG, "Is default SMS app: $isDefault (default: $defaultSmsPackage, us: ${reactApplicationContext.packageName})")
+            } else {
+                // Before KitKat, there was no default SMS app concept
+                promise.resolve(true)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking default SMS app: ${e.message}", e)
+            promise.reject("ERROR", "Failed to check default SMS app: ${e.message}")
+        }
+    }
+
+    // Request to become default SMS app
+    @ReactMethod
+    fun requestDefaultSmsApp(promise: Promise) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                val activity = reactApplicationContext.currentActivity
+                if (activity == null) {
+                    promise.reject("ERROR", "No activity available")
+                    return
+                }
+
+                val defaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(reactApplicationContext)
+                if (defaultSmsPackage != reactApplicationContext.packageName) {
+                    val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT).apply {
+                        putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, reactApplicationContext.packageName)
+                    }
+                    activity.startActivity(intent)
+                    promise.resolve(true)
+                    Log.d(TAG, "Requested default SMS app change")
+                } else {
+                    promise.resolve(true)
+                    Log.d(TAG, "Already default SMS app")
+                }
+            } else {
+                promise.resolve(true)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error requesting default SMS app: ${e.message}", e)
+            promise.reject("ERROR", "Failed to request default SMS app: ${e.message}")
         }
     }
 
