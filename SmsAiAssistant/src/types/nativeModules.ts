@@ -30,6 +30,11 @@ export interface PhotoStorageInfo {
   photoCount: number;
 }
 
+export interface ContactInfo {
+  name: string;
+  phoneNumber: string;
+}
+
 export interface SmsModuleType {
   // Service management
   startBackgroundService(): Promise<boolean>;
@@ -41,6 +46,9 @@ export interface SmsModuleType {
 
   // SMS operations
   sendSms(phoneNumber: string, message: string): Promise<boolean>;
+
+  // Contact operations
+  pickContact(): Promise<ContactInfo>;
 
   // Database operations
   getAllConversations(): Promise<Conversation[]>;

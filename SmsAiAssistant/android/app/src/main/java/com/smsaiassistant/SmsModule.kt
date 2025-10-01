@@ -4,7 +4,10 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.Cursor
+import android.net.Uri
 import android.os.Build
+import android.provider.ContactsContract
 import android.telephony.SmsManager
 import android.util.Log
 import androidx.core.app.ActivityCompat
@@ -17,7 +20,10 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     companion object {
         private const val TAG = "SmsModule"
         private const val PERMISSION_REQUEST_CODE = 1001
+        private const val PICK_CONTACT_REQUEST = 1002
     }
+
+    private var pickContactPromise: Promise? = null
 
     override fun getName(): String {
         return "SmsModule"
@@ -315,6 +321,96 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         reactApplicationContext
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit(eventName, params)
+    }
+
+    // Pick a contact from device contacts
+    @ReactMethod
+    fun pickContact(promise: Promise) {
+        try {
+            val activity = reactApplicationContext.currentActivity
+            if (activity == null) {
+                promise.reject("ERROR", "No activity available")
+                return
+            }
+
+            pickContactPromise = promise
+
+            val intent = Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+            activity.startActivityForResult(intent, PICK_CONTACT_REQUEST)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error picking contact: ${e.message}", e)
+            promise.reject("ERROR", "Failed to open contact picker: ${e.message}")
+        }
+    }
+
+    // Handle activity result for contact picker
+    private val activityEventListener = object : BaseActivityEventListener() {
+        override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
+            if (requestCode == PICK_CONTACT_REQUEST) {
+                if (resultCode == Activity.RESULT_OK && data != null) {
+                    handleContactPicked(data)
+                } else {
+                    pickContactPromise?.reject("CANCELLED", "Contact picker was cancelled")
+                    pickContactPromise = null
+                }
+            }
+        }
+    }
+
+    init {
+        reactApplicationContext.addActivityEventListener(activityEventListener)
+    }
+
+    private fun handleContactPicked(data: Intent) {
+        try {
+            val contactUri: Uri = data.data ?: run {
+                pickContactPromise?.reject("ERROR", "No contact data returned")
+                pickContactPromise = null
+                return
+            }
+
+            val cursor: Cursor? = reactApplicationContext.contentResolver.query(
+                contactUri,
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER
+                ),
+                null,
+                null,
+                null
+            )
+
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val nameIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                    val numberIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+
+                    val name = if (nameIndex >= 0) it.getString(nameIndex) ?: "Unknown" else "Unknown"
+                    val number = if (numberIndex >= 0) it.getString(numberIndex) ?: "" else ""
+
+                    // Remove formatting from phone number (keep only digits)
+                    val cleanNumber = number.replace(Regex("[^0-9]"), "")
+
+                    val result = Arguments.createMap().apply {
+                        putString("name", name)
+                        putString("phoneNumber", cleanNumber)
+                    }
+
+                    pickContactPromise?.resolve(result)
+                } else {
+                    pickContactPromise?.reject("ERROR", "No contact information found")
+                }
+            } ?: run {
+                pickContactPromise?.reject("ERROR", "Failed to read contact data")
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading contact: ${e.message}", e)
+            pickContactPromise?.reject("ERROR", "Failed to read contact: ${e.message}")
+        } finally {
+            pickContactPromise = null
+        }
     }
 
     // Constants accessible from JavaScript

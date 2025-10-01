@@ -15,6 +15,38 @@ class DatabaseService {
   }
 
   /**
+   * Create a new conversation or return existing one
+   * Returns the phone number (navigates to existing if duplicate)
+   */
+  async createConversation(phoneNumber: string, contactName?: string): Promise<string> {
+    try {
+      // Check if conversation already exists
+      const conversations = await this.getAllConversations();
+      const existing = conversations.find(c => c.phone_number === phoneNumber);
+
+      if (existing) {
+        console.log('Conversation already exists, returning existing:', phoneNumber);
+        return phoneNumber; // Will navigate to existing conversation
+      }
+
+      // Create a placeholder message to initialize the conversation
+      // This ensures the conversation appears in the list
+      await this.insertMessage(
+        phoneNumber,
+        '', // Empty message - will be replaced when user sends first message
+        'manual'
+      );
+
+      console.log('Created new conversation for:', phoneNumber);
+      return phoneNumber;
+
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get messages for a specific phone number
    */
   async getConversationMessages(

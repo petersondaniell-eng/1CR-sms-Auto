@@ -66,6 +66,7 @@ Create React Native bridge to communicate between JS and native Android:
 - Methods to check/request permissions
 - Methods to start/stop background service
 - Methods to read MMS attachments
+- **NEW:** Method to open native contact picker and return contact info
 
 File: `android/app/src/main/java/com/smsaiassistant/SmsModule.java`
 
@@ -114,6 +115,11 @@ CREATE TABLE settings (
 - Pull to refresh
 - Search/filter conversations
 - Click to open conversation detail
+- **NEW:** Floating action button (+) to initiate new conversations
+- **NEW:** Modal with two options:
+  1. Select from device contacts (native contact picker)
+  2. Enter phone number manually with validation
+- **NEW:** Automatic navigation to existing conversation if duplicate phone number
 
 #### Screen 2: Conversation Detail
 - Display full message history with sender indicators
