@@ -17,51 +17,82 @@ class SmsReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context?, intent: Intent?) {
-        if (context == null || intent == null) return
+        Log.d(TAG, "===== SMS RECEIVER TRIGGERED =====")
 
-        Log.d(TAG, "Broadcast Received - Action: ${intent.action}")
-
-        when (intent.action) {
-            Telephony.Sms.Intents.SMS_DELIVER_ACTION -> {
-                Log.d(TAG, "SMS_DELIVER received - processing as default SMS app")
-                handleSmsReceived(context, intent)
-            }
-            Telephony.Sms.Intents.WAP_PUSH_DELIVER_ACTION -> {
-                Log.d(TAG, "MMS received - processing as default SMS app")
-                handleSmsReceived(context, intent) // Handle MMS similar to SMS
-            }
-            else -> {
-                Log.w(TAG, "Unexpected action: ${intent.action}")
-            }
+        if (context == null) {
+            Log.e(TAG, "Context is null!")
+            return
         }
+
+        if (intent == null) {
+            Log.e(TAG, "Intent is null!")
+            return
+        }
+
+        Log.d(TAG, "Action: ${intent.action}")
+        Log.d(TAG, "Package: ${context.packageName}")
+
+        try {
+            when (intent.action) {
+                Telephony.Sms.Intents.SMS_DELIVER_ACTION -> {
+                    Log.d(TAG, "SMS_DELIVER received - processing as default SMS app")
+                    handleSmsReceived(context, intent)
+                }
+                Telephony.Sms.Intents.WAP_PUSH_DELIVER_ACTION -> {
+                    Log.d(TAG, "MMS received - processing as default SMS app")
+                    handleSmsReceived(context, intent)
+                }
+                else -> {
+                    Log.w(TAG, "Unexpected action: ${intent.action}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "CRITICAL ERROR in onReceive: ${e.message}", e)
+            e.printStackTrace()
+        }
+
+        Log.d(TAG, "===== SMS RECEIVER FINISHED =====")
     }
 
     private fun handleSmsReceived(context: Context, intent: Intent) {
+        Log.d(TAG, "=== handleSmsReceived START ===")
+
         val bundle: Bundle? = intent.extras
         if (bundle == null) {
             Log.e(TAG, "Bundle is null")
             return
         }
 
+        Log.d(TAG, "Bundle keys: ${bundle.keySet()}")
+
         try {
             // Extract SMS messages from bundle
             val pdus = bundle.get("pdus") as? Array<*>
             if (pdus == null || pdus.isEmpty()) {
-                Log.e(TAG, "No PDUs found")
+                Log.e(TAG, "No PDUs found in bundle")
                 return
             }
 
+            Log.d(TAG, "Found ${pdus.size} PDU(s)")
+
             val format = bundle.getString("format")
+            Log.d(TAG, "SMS format: $format")
+
             val messages = mutableListOf<SmsMessage>()
 
-            for (pdu in pdus) {
-                val message = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                    SmsMessage.createFromPdu(pdu as ByteArray, format)
-                } else {
-                    @Suppress("DEPRECATION")
-                    SmsMessage.createFromPdu(pdu as ByteArray)
+            for ((index, pdu) in pdus.withIndex()) {
+                try {
+                    val message = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                        SmsMessage.createFromPdu(pdu as ByteArray, format)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        SmsMessage.createFromPdu(pdu as ByteArray)
+                    }
+                    messages.add(message)
+                    Log.d(TAG, "PDU $index parsed successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing PDU $index: ${e.message}", e)
                 }
-                messages.add(message)
             }
 
             // Combine message parts if needed
@@ -70,30 +101,46 @@ class SmsReceiver : BroadcastReceiver() {
                 val messageBody = messages.joinToString("") { it.messageBody ?: "" }
                 val timestamp = messages[0].timestampMillis
 
-                Log.d(TAG, "SMS from: $sender, Message: $messageBody")
+                Log.d(TAG, "Parsed SMS - From: $sender, Length: ${messageBody.length} chars, Time: $timestamp")
+                Log.d(TAG, "Message preview: ${messageBody.take(50)}...")
 
                 // Store message in database
+                Log.d(TAG, "Storing in database...")
                 storeSmsInDatabase(context, sender, messageBody, timestamp)
 
                 // Trigger AI response if enabled
+                Log.d(TAG, "Checking for AI response...")
                 triggerAiResponse(context, sender, messageBody)
 
                 // Send broadcast to React Native
+                Log.d(TAG, "Notifying React Native...")
                 notifyReactNative(context, sender, messageBody, timestamp)
+
+                Log.d(TAG, "SMS processing completed successfully")
+            } else {
+                Log.e(TAG, "No messages were parsed from PDUs")
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error processing SMS: ${e.message}", e)
+            Log.e(TAG, "CRITICAL ERROR processing SMS: ${e.message}", e)
+            e.printStackTrace()
         }
+
+        Log.d(TAG, "=== handleSmsReceived END ===")
     }
 
     private fun storeSmsInDatabase(context: Context, sender: String, message: String, timestamp: Long) {
         try {
+            Log.d(TAG, "Getting DatabaseHelper instance...")
             val dbHelper = DatabaseHelper.getInstance(context)
-            dbHelper.insertMessage(sender, message, timestamp, "customer")
-            Log.d(TAG, "Message stored in database")
+
+            Log.d(TAG, "Calling insertMessage - sender: $sender, timestamp: $timestamp, type: customer")
+            val messageId = dbHelper.insertMessage(sender, message, timestamp, "customer")
+
+            Log.d(TAG, "Message stored in database with ID: $messageId")
         } catch (e: Exception) {
-            Log.e(TAG, "Error storing message: ${e.message}", e)
+            Log.e(TAG, "CRITICAL ERROR storing message in database: ${e.message}", e)
+            e.printStackTrace()
         }
     }
 
