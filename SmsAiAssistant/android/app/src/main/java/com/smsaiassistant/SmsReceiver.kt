@@ -22,13 +22,16 @@ class SmsReceiver : BroadcastReceiver() {
         Log.d(TAG, "Broadcast Received - Action: ${intent.action}")
 
         when (intent.action) {
-            Telephony.Sms.Intents.SMS_RECEIVED_ACTION,
             Telephony.Sms.Intents.SMS_DELIVER_ACTION -> {
+                Log.d(TAG, "SMS_DELIVER received - processing as default SMS app")
                 handleSmsReceived(context, intent)
             }
             Telephony.Sms.Intents.WAP_PUSH_DELIVER_ACTION -> {
-                Log.d(TAG, "MMS received - basic handling")
-                // MMS handling can be added later if needed
+                Log.d(TAG, "MMS received - processing as default SMS app")
+                handleSmsReceived(context, intent) // Handle MMS similar to SMS
+            }
+            else -> {
+                Log.w(TAG, "Unexpected action: ${intent.action}")
             }
         }
     }

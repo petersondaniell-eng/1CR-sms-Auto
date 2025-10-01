@@ -50,17 +50,21 @@
         </intent-filter>
       </activity>
 
-      <!-- SMS Receiver - Required for default SMS app -->
+      <!-- BroadcastReceiver that listens for incoming SMS messages -->
       <receiver
         android:name=".SmsReceiver"
+        android:permission="android.permission.BROADCAST_SMS"
         android:exported="true">
-        <!-- SMS Broadcast Receiver -->
-        <intent-filter android:priority="1000">
-          <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+        <intent-filter>
           <action android:name="android.provider.Telephony.SMS_DELIVER" />
         </intent-filter>
+      </receiver>
 
-        <!-- MMS Receiver -->
+      <!-- BroadcastReceiver that listens for incoming MMS messages -->
+      <receiver
+        android:name=".MmsReceiver"
+        android:permission="android.permission.BROADCAST_WAP_PUSH"
+        android:exported="true">
         <intent-filter>
           <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
           <data android:mimeType="application/vnd.wap.mms-message" />
