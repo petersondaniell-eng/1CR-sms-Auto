@@ -52,7 +52,12 @@
       "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-25\" ./gradlew clean)",
       "Read(//c/Program Files/Java/**)",
       "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-25\" ./gradlew assembleDebug)",
-      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-25\" ./gradlew assembleDebug --warning-mode all)"
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-25\" ./gradlew assembleDebug --warning-mode all)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew assembleDebug --warning-mode all)",
+      "Read(//c/Users/Owner/AppData/Local/Android/Sdk/**)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew assembleDebug)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew assembleDebug --no-daemon)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Java/jdk-21\" ./gradlew clean assembleDebug)"
     ],
     "deny": [
       "Bash(rm:*)",
