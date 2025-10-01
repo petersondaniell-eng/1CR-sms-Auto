@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     padding: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingBottom: Spacing.xl + Spacing.md,
     backgroundColor: Colors.cardBackground,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
