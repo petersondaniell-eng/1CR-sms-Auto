@@ -3,7 +3,8 @@ import { StatusBar, View, ActivityIndicator, StyleSheet, Text } from 'react-nati
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import AppNavigator from './src/navigation/AppNavigator';
-import { initDatabase } from './src/services/database';
+import SmsModule from './src/types/nativeModules';
+import settingsService from './src/services/settingsService';
 import { Colors } from './src/constants/theme';
 
 function App() {
@@ -18,9 +19,16 @@ function App() {
     try {
       console.log('Initializing SMS AI Assistant...');
 
-      // Initialize database
-      await initDatabase();
-      console.log('Database initialized successfully');
+      // Load settings
+      await settingsService.loadSettings();
+      console.log('Settings loaded successfully');
+
+      // Start background service if auto-reply is enabled
+      const settings = await settingsService.getSettings();
+      if (settings.autoReplyEnabled) {
+        await SmsModule.startBackgroundService();
+        console.log('Background service started');
+      }
 
       setIsReady(true);
     } catch (err) {

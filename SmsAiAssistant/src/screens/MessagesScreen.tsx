@@ -8,18 +8,24 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors, Spacing, FontSizes, BorderRadius, Shadows } from '../constants/theme';
-import { Conversation } from '../types';
-import { getConversations } from '../services/database';
+import type { Conversation } from '../types/nativeModules';
+import type { RootStackParamList } from '../navigation/AppNavigator';
+import databaseService from '../services/databaseService';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const MessagesScreen = () => {
+  const navigation = useNavigation<NavigationProp>();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadConversations = async () => {
     try {
-      const data = await getConversations();
+      const data = await databaseService.getAllConversations();
       setConversations(data);
     } catch (error) {
       console.error('Error loading conversations:', error);
@@ -53,8 +59,17 @@ const MessagesScreen = () => {
     }
   };
 
+  const handleConversationPress = (conversation: Conversation) => {
+    navigation.navigate('ConversationDetail', {
+      phoneNumber: conversation.phone_number,
+      contactName: conversation.contact_name,
+    });
+  };
+
   const renderConversation = ({ item }: { item: Conversation }) => (
-    <TouchableOpacity style={styles.conversationCard}>
+    <TouchableOpacity
+      style={styles.conversationCard}
+      onPress={() => handleConversationPress(item)}>
       <View style={styles.conversationHeader}>
         <Text style={styles.contactName}>
           {item.contact_name || item.phone_number}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,19 +7,58 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Colors, Spacing, FontSizes, BorderRadius, Shadows } from '../constants/theme';
+import settingsService from '../services/settingsService';
 
 const TrainingScreen = () => {
-  const [instructions, setInstructions] = useState(
-    'You are an AI assistant for an appliance repair business. Be helpful, professional, and concise in your responses. ' +
-    'Help customers schedule appointments, answer questions about common appliance issues, and provide basic troubleshooting advice.'
-  );
+  const [instructions, setInstructions] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    // TODO: Save to AsyncStorage
-    Alert.alert('Success', 'AI training instructions saved successfully');
+  useEffect(() => {
+    loadInstructions();
+  }, []);
+
+  const loadInstructions = async () => {
+    try {
+      const customInstructions = await settingsService.getSetting('customInstructions');
+      setInstructions(customInstructions);
+    } catch (error) {
+      console.error('Error loading instructions:', error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleSave = async () => {
+    if (saving) return;
+
+    setSaving(true);
+    try {
+      const success = await settingsService.setSetting('customInstructions', instructions);
+
+      if (success) {
+        Alert.alert('Success', 'AI training instructions saved successfully');
+      } else {
+        Alert.alert('Error', 'Failed to save instructions');
+      }
+    } catch (error) {
+      console.error('Error saving instructions:', error);
+      Alert.alert('Error', 'Failed to save instructions');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -42,8 +81,13 @@ const TrainingScreen = () => {
           />
         </View>
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>Save Instructions</Text>
+        <TouchableOpacity
+          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+          onPress={handleSave}
+          disabled={saving}>
+          <Text style={styles.saveButtonText}>
+            {saving ? 'Saving...' : 'Save Instructions'}
+          </Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>Example Conversations</Text>
@@ -65,6 +109,12 @@ const TrainingScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.background,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: Colors.background,
   },
   content: {
@@ -103,6 +153,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.lg,
     ...Shadows.medium,
+  },
+  saveButtonDisabled: {
+    backgroundColor: Colors.textLight,
+    opacity: 0.5,
   },
   saveButtonText: {
     color: '#FFFFFF',
