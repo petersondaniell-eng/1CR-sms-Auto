@@ -125,6 +125,18 @@ class DatabaseService {
       return 0;
     }
   }
+
+  /**
+   * Delete a conversation and all its messages
+   */
+  async deleteConversation(phoneNumber: string): Promise<boolean> {
+    try {
+      return await SmsModule.deleteConversation(phoneNumber);
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      return false;
+    }
+  }
 }
 
 export default new DatabaseService();

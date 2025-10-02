@@ -68,6 +68,9 @@ export interface SmsModuleType {
   getPhotoStorageInfo(): Promise<PhotoStorageInfo>;
   deleteOldPhotos(daysOld: number): Promise<number>;
 
+  // Conversation management
+  deleteConversation(phoneNumber: string): Promise<boolean>;
+
   // Constants
   SENDER_TYPE_CUSTOMER: string;
   SENDER_TYPE_AI: string;

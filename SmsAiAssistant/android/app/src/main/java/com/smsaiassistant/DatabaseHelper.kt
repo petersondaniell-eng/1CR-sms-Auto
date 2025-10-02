@@ -282,6 +282,49 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(
         }
     }
 
+    // Delete conversation and all its messages
+    fun deleteConversation(phoneNumber: String) {
+        val db = writableDatabase
+
+        try {
+            // First get the conversation ID
+            val cursor = db.query(
+                TABLE_CONVERSATIONS,
+                arrayOf(COL_CONV_ID),
+                "$COL_CONV_PHONE = ?",
+                arrayOf(phoneNumber),
+                null, null, null
+            )
+
+            if (cursor.moveToFirst()) {
+                val conversationId = cursor.getLong(cursor.getColumnIndexOrThrow(COL_CONV_ID))
+                cursor.close()
+
+                // Delete all messages for this conversation
+                val messagesDeleted = db.delete(
+                    TABLE_MESSAGES,
+                    "$COL_MSG_CONV_ID = ?",
+                    arrayOf(conversationId.toString())
+                )
+
+                // Delete the conversation
+                val conversationsDeleted = db.delete(
+                    TABLE_CONVERSATIONS,
+                    "$COL_CONV_ID = ?",
+                    arrayOf(conversationId.toString())
+                )
+
+                Log.d(TAG, "Deleted conversation $conversationId: $conversationsDeleted conversation, $messagesDeleted messages")
+            } else {
+                cursor.close()
+                Log.w(TAG, "Conversation not found for phone: $phoneNumber")
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting conversation: ${e.message}", e)
+        }
+    }
+
     private fun getUnreadCount(conversationId: Long): Int {
         val db = readableDatabase
         val cursor = db.query(

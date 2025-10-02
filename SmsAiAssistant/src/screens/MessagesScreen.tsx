@@ -10,6 +10,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  AppState,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -19,6 +20,7 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 import databaseService from '../services/databaseService';
 import SmsModule from '../types/nativeModules';
 import { validatePhoneNumber, formatPhoneNumberForDisplay } from '../utils/phoneUtils';
+import smsEventService from '../services/smsEventService';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -47,6 +49,27 @@ const MessagesScreen = () => {
   useEffect(() => {
     loadConversations();
     checkDefaultSmsApp();
+
+    // Listen for incoming SMS events from native code
+    smsEventService.startListening((event) => {
+      console.log('MessagesScreen: New SMS received:', event);
+      // Reload conversations to show the new message
+      loadConversations();
+    });
+
+    // Also reload when app comes to foreground (in case SMS arrived while backgrounded)
+    const appStateListener = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        console.log('App came to foreground, reloading conversations...');
+        loadConversations();
+      }
+    });
+
+    // Cleanup listeners on unmount
+    return () => {
+      smsEventService.stopListening();
+      appStateListener.remove();
+    };
   }, []);
 
   const checkDefaultSmsApp = async () => {
@@ -151,10 +174,34 @@ const MessagesScreen = () => {
     }
   };
 
+  const handleDeleteConversation = (conversation: Conversation) => {
+    Alert.alert(
+      'Delete Conversation',
+      `Delete conversation with ${conversation.contact_name || conversation.phone_number}? This will delete all messages.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await databaseService.deleteConversation(conversation.phone_number);
+              loadConversations(); // Reload the list
+            } catch (error) {
+              console.error('Error deleting conversation:', error);
+              Alert.alert('Error', 'Failed to delete conversation');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderConversation = ({ item }: { item: Conversation }) => (
     <TouchableOpacity
       style={styles.conversationCard}
-      onPress={() => handleConversationPress(item)}>
+      onPress={() => handleConversationPress(item)}
+      onLongPress={() => handleDeleteConversation(item)}>
       <View style={styles.conversationHeader}>
         <Text style={styles.contactName}>
           {item.contact_name || item.phone_number}

@@ -13,6 +13,7 @@ import {
   Modal,
   ScrollView,
   Clipboard,
+  AppState,
 } from 'react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
@@ -22,6 +23,7 @@ import type { Message } from '../types/nativeModules';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import databaseService from '../services/databaseService';
 import claudeService from '../services/claudeService';
+import smsEventService from '../services/smsEventService';
 
 type RouteParams = RouteProp<RootStackParamList, 'ConversationDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -65,6 +67,30 @@ const ConversationDetailScreen = () => {
         </TouchableOpacity>
       ),
     });
+
+    // Listen for incoming SMS events
+    smsEventService.startListening((event) => {
+      console.log('ConversationDetailScreen: SMS event received:', event);
+      // Only reload if the SMS is for this conversation
+      if (event.sender === phoneNumber || event.sender === `+1${phoneNumber}` || `+1${event.sender}` === phoneNumber) {
+        console.log('ConversationDetailScreen: SMS is for this conversation, reloading...');
+        loadMessages();
+      }
+    });
+
+    // Also reload when app comes to foreground
+    const appStateListener = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        console.log('ConversationDetailScreen: App came to foreground, reloading...');
+        loadMessages();
+      }
+    });
+
+    // Cleanup listeners on unmount
+    return () => {
+      smsEventService.stopListening();
+      appStateListener.remove();
+    };
   }, [phoneNumber, navigation]);
 
   const loadMessages = async () => {

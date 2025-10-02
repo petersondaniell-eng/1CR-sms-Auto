@@ -178,7 +178,25 @@ class SmsReceiver : BroadcastReceiver() {
 
     private fun notifyReactNative(context: Context, sender: String, message: String, timestamp: Long) {
         try {
-            // Send broadcast that React Native can listen to
+            Log.d(TAG, "Attempting to notify React Native...")
+
+            // Try to get the SmsModule instance from the React Native app
+            try {
+                val reactApplication = context.applicationContext as? MainApplication
+                val smsModule = reactApplication?.reactNativeHost?.reactInstanceManager?.currentReactContext?.getNativeModule(SmsModule::class.java)
+
+                if (smsModule != null) {
+                    Log.d(TAG, "SmsModule found, emitting event...")
+                    smsModule.emitSmsReceived(sender, message, timestamp)
+                    Log.d(TAG, "Event emitted successfully via SmsModule")
+                } else {
+                    Log.w(TAG, "SmsModule not available yet (React Native may not be initialized)")
+                }
+            } catch (moduleError: Exception) {
+                Log.e(TAG, "Error getting SmsModule: ${moduleError.message}", moduleError)
+            }
+
+            // Also send Android broadcast as fallback
             val broadcastIntent = Intent("com.smsaiassistant.SMS_RECEIVED").apply {
                 putExtra("sender", sender)
                 putExtra("message", message)
@@ -186,8 +204,11 @@ class SmsReceiver : BroadcastReceiver() {
                 setPackage(context.packageName)
             }
             context.sendBroadcast(broadcastIntent)
+
+            Log.d(TAG, "Notification completed")
         } catch (e: Exception) {
             Log.e(TAG, "Error notifying React Native: ${e.message}", e)
+            e.printStackTrace()
         }
     }
 }

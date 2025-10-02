@@ -14,8 +14,10 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.*
+import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.modules.core.DeviceEventManagerModule
 
+@ReactModule(name = "SmsModule")
 class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
     companion object {
@@ -317,11 +319,41 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         }
     }
 
+    // Delete a conversation and all its messages
+    @ReactMethod
+    fun deleteConversation(phoneNumber: String, promise: Promise) {
+        try {
+            val dbHelper = DatabaseHelper.getInstance(reactApplicationContext)
+            dbHelper.deleteConversation(phoneNumber)
+            promise.resolve(true)
+            Log.d(TAG, "Deleted conversation for: $phoneNumber")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting conversation: ${e.message}", e)
+            promise.reject("ERROR", "Failed to delete conversation: ${e.message}")
+        }
+    }
+
     // Send event to React Native
     private fun sendEvent(eventName: String, params: WritableMap?) {
         reactApplicationContext
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit(eventName, params)
+    }
+
+    // Public method for other components to emit SMS events
+    fun emitSmsReceived(sender: String, message: String, timestamp: Long) {
+        try {
+            val params = Arguments.createMap().apply {
+                putString("sender", sender)
+                putString("message", message)
+                putDouble("timestamp", timestamp.toDouble())
+            }
+            sendEvent("SMS_RECEIVED", params)
+            Log.d(TAG, "Emitted SMS_RECEIVED event to React Native")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error emitting SMS event: ${e.message}", e)
+        }
     }
 
     // Pick a contact from device contacts
