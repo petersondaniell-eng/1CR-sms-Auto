@@ -40,6 +40,9 @@ export interface SmsModuleType {
   startBackgroundService(): Promise<boolean>;
   stopBackgroundService(): Promise<boolean>;
 
+  // Settings sync
+  syncSettings(settings: any): Promise<boolean>;
+
   // Permissions
   checkSmsPermissions(): Promise<SmsPermissions>;
   requestSmsPermissions(): Promise<boolean>;

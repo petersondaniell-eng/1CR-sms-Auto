@@ -543,6 +543,49 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         }
     }
 
+    // Sync settings from React Native to SharedPreferences for native service
+    @ReactMethod
+    fun syncSettings(settings: ReadableMap, promise: Promise) {
+        try {
+            val sharedPrefs = reactApplicationContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            val editor = sharedPrefs.edit()
+
+            // Sync all settings
+            if (settings.hasKey("autoReplyEnabled")) {
+                editor.putBoolean("auto_reply_enabled", settings.getBoolean("autoReplyEnabled"))
+            }
+            if (settings.hasKey("notifyBeforeRespond")) {
+                editor.putBoolean("notify_before_respond", settings.getBoolean("notifyBeforeRespond"))
+            }
+            if (settings.hasKey("businessHoursStart")) {
+                editor.putInt("business_hours_start", settings.getInt("businessHoursStart"))
+            }
+            if (settings.hasKey("businessHoursEnd")) {
+                editor.putInt("business_hours_end", settings.getInt("businessHoursEnd"))
+            }
+            if (settings.hasKey("claudeApiKey")) {
+                editor.putString("claude_api_key", settings.getString("claudeApiKey"))
+            }
+            if (settings.hasKey("customInstructions")) {
+                editor.putString("custom_instructions", settings.getString("customInstructions"))
+            }
+            if (settings.hasKey("autoDeletePhotos")) {
+                editor.putBoolean("auto_delete_photos", settings.getBoolean("autoDeletePhotos"))
+            }
+            if (settings.hasKey("autoDeletePhotosDays")) {
+                editor.putInt("auto_delete_photos_days", settings.getInt("autoDeletePhotosDays"))
+            }
+
+            editor.apply()
+            promise.resolve(true)
+            Log.d(TAG, "Settings synced to SharedPreferences")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error syncing settings: ${e.message}", e)
+            promise.reject("ERROR", "Failed to sync settings: ${e.message}")
+        }
+    }
+
     // Constants accessible from JavaScript
     override fun getConstants(): MutableMap<String, Any> {
         return hashMapOf(
