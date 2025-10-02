@@ -2,6 +2,8 @@ package com.smsaiassistant
 
 import android.Manifest
 import android.app.Activity
+import android.app.role.RoleManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
@@ -450,14 +452,23 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     @ReactMethod
     fun isDefaultSmsApp(promise: Promise) {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                val defaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(reactApplicationContext)
-                val isDefault = defaultSmsPackage == reactApplicationContext.packageName
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Use RoleManager on Android 10+ (more reliable)
+                val roleManager = reactApplicationContext.getSystemService(Context.ROLE_SERVICE) as? RoleManager
+                val isDefault = roleManager?.isRoleHeld(RoleManager.ROLE_SMS) == true
                 promise.resolve(isDefault)
-                Log.d(TAG, "Is default SMS app: $isDefault (default: $defaultSmsPackage, us: ${reactApplicationContext.packageName})")
+                Log.d(TAG, "Is default SMS app (RoleManager): $isDefault")
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                // Fall back to Telephony API on Android 4.4-9
+                val defaultSmsPackage = Telephony.Sms.getDefaultSmsPackage(reactApplicationContext)
+                val ourPackage = reactApplicationContext.packageName
+                val isDefault = defaultSmsPackage == ourPackage
+                promise.resolve(isDefault)
+                Log.d(TAG, "Is default SMS app (Telephony): $isDefault (default: $defaultSmsPackage, us: $ourPackage)")
             } else {
                 // Before KitKat, there was no default SMS app concept
                 promise.resolve(true)
+                Log.d(TAG, "Is default SMS app: true (pre-KitKat)")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error checking default SMS app: ${e.message}", e)
@@ -483,18 +494,28 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
                 Log.d(TAG, "Current default SMS package: $defaultSmsPackage")
                 Log.d(TAG, "Our package name: $ourPackage")
 
-                if (defaultSmsPackage != ourPackage) {
+                // Check if we need to request default status
+                if (defaultSmsPackage == null || defaultSmsPackage != ourPackage) {
                     try {
-                        val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
-                        intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, ourPackage)
+                        // If null, use default apps settings instead of ACTION_CHANGE_DEFAULT
+                        if (defaultSmsPackage == null) {
+                            Log.d(TAG, "No default SMS app set, opening default apps settings")
+                            val settingsIntent = Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
+                            activity.startActivity(settingsIntent)
+                            promise.resolve(true)
+                            Log.d(TAG, "Opened default apps settings (no default SMS app)")
+                        } else {
+                            val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
+                            intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, ourPackage)
 
-                        // Try to start the activity
-                        activity.startActivity(intent)
+                            // Try to start the activity
+                            activity.startActivity(intent)
 
-                        promise.resolve(true)
-                        Log.d(TAG, "Started ACTION_CHANGE_DEFAULT intent")
+                            promise.resolve(true)
+                            Log.d(TAG, "Started ACTION_CHANGE_DEFAULT intent")
+                        }
                     } catch (activityException: Exception) {
-                        Log.e(TAG, "Failed to start ACTION_CHANGE_DEFAULT: ${activityException.message}", activityException)
+                        Log.e(TAG, "Failed to start intent: ${activityException.message}", activityException)
 
                         // Fallback: Open app settings if the intent doesn't work
                         try {

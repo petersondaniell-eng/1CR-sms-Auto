@@ -24,6 +24,7 @@ import type { RootStackParamList } from '../navigation/AppNavigator';
 import databaseService from '../services/databaseService';
 import claudeService from '../services/claudeService';
 import smsEventService from '../services/smsEventService';
+import settingsService from '../services/settingsService';
 
 type RouteParams = RouteProp<RootStackParamList, 'ConversationDetail'>;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -136,12 +137,25 @@ const ConversationDetailScreen = () => {
   };
 
   const handleGenerateAI = async () => {
-    if (generatingAI) return;
+    console.log('Generate AI button pressed');
+
+    if (generatingAI) {
+      console.log('Already generating, returning...');
+      return;
+    }
 
     setGeneratingAI(true);
 
     try {
-      const aiResponse = await claudeService.generateResponse(messages);
+      console.log('Calling claudeService.generateResponse with', messages.length, 'messages');
+
+      // Get custom instructions from settings
+      const settings = await settingsService.getSettings();
+      const customInstructions = settings.customInstructions;
+      console.log('Using custom instructions:', customInstructions ? 'Yes' : 'No (using defaults)');
+
+      const aiResponse = await claudeService.generateResponse(messages, customInstructions);
+      console.log('AI Response received:', aiResponse ? 'Success' : 'null');
 
       if (aiResponse) {
         setInputText(aiResponse);
@@ -151,6 +165,7 @@ const ConversationDetailScreen = () => {
           [{ text: 'OK' }]
         );
       } else {
+        console.error('AI Response was null');
         Alert.alert('Error', 'Failed to generate AI response. Please check your API key.');
       }
     } catch (error) {

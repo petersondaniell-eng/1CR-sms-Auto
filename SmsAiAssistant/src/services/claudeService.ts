@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Message } from '../types/nativeModules';
+import settingsService from './settingsService';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
@@ -28,18 +29,23 @@ class ClaudeService {
     customInstructions?: string
   ): Promise<string | null> {
     try {
-      const apiKey = await AsyncStorage.getItem('claude_api_key');
+      const apiKey = await settingsService.getApiKey();
 
       if (!apiKey) {
         console.error('Claude API key not found');
         return null;
       }
 
+      console.log('Using API key:', apiKey.substring(0, 10) + '...');
+
       // Build conversation context
       const conversationContext = await this.buildConversationContext(
         messages,
         customInstructions
       );
+
+      console.log('Making Claude API request...');
+      console.log('Prompt preview (first 200 chars):', conversationContext.substring(0, 200));
 
       // Make API request
       const response = await fetch(CLAUDE_API_URL, {
@@ -61,9 +67,15 @@ class ClaudeService {
         }),
       });
 
+      console.log('Claude API response status:', response.status);
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Claude API error:', errorText);
+        console.error('Claude API error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
         return null;
       }
 
@@ -90,7 +102,7 @@ class ClaudeService {
     customInstructions?: string
   ): Promise<string | null> {
     try {
-      const apiKey = await AsyncStorage.getItem('claude_api_key');
+      const apiKey = await settingsService.getApiKey();
 
       if (!apiKey) {
         console.error('Claude API key not found');

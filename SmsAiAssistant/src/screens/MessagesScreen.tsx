@@ -12,7 +12,7 @@ import {
   Alert,
   AppState,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors, Spacing, FontSizes, BorderRadius, Shadows } from '../constants/theme';
 import type { Conversation } from '../types/nativeModules';
@@ -60,8 +60,9 @@ const MessagesScreen = () => {
     // Also reload when app comes to foreground (in case SMS arrived while backgrounded)
     const appStateListener = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
-        console.log('App came to foreground, reloading conversations...');
+        console.log('App came to foreground, reloading conversations and checking SMS app status...');
         loadConversations();
+        checkDefaultSmsApp(); // Recheck if we're default when app comes to foreground
       }
     });
 
@@ -76,20 +77,29 @@ const MessagesScreen = () => {
     try {
       const isDefault = await SmsModule.isDefaultSmsApp();
       setIsDefaultSmsApp(isDefault);
+
+      // Only show prompt if not default, otherwise hide it
       if (!isDefault) {
         setShowSmsAppPrompt(true);
+      } else {
+        setShowSmsAppPrompt(false);
       }
     } catch (error) {
       console.error('Error checking default SMS app:', error);
     }
   };
 
+  // Recheck default SMS app status whenever screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      checkDefaultSmsApp();
+    }, [])
+  );
+
   const handleSetDefaultSmsApp = async () => {
     try {
       await SmsModule.requestDefaultSmsApp();
-      setShowSmsAppPrompt(false);
-      // Recheck after user interacts with settings
-      setTimeout(checkDefaultSmsApp, 1000);
+      // Don't hide the banner immediately - it will auto-hide when user returns and we detect they're default
     } catch (error) {
       console.error('Error requesting default SMS app:', error);
       Alert.alert('Error', 'Failed to open SMS app settings');
