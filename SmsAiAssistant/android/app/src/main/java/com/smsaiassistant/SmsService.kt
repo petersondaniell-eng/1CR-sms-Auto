@@ -10,7 +10,9 @@ import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.net.URL
+import java.util.Base64
 import javax.net.ssl.HttpsURLConnection
 
 class SmsService : Service() {
@@ -42,7 +44,8 @@ class SmsService : Service() {
             "GENERATE_AI_RESPONSE" -> {
                 val sender = intent.getStringExtra("sender") ?: return START_STICKY
                 val message = intent.getStringExtra("message") ?: return START_STICKY
-                handleAiResponse(sender, message)
+                val photoPath = intent.getStringExtra("photoPath")
+                handleAiResponse(sender, message, photoPath)
             }
             "START_SERVICE" -> {
                 Log.d(TAG, "Service explicitly started")
@@ -97,10 +100,10 @@ class SmsService : Service() {
             .build()
     }
 
-    private fun handleAiResponse(sender: String, message: String) {
+    private fun handleAiResponse(sender: String, message: String, photoPath: String? = null) {
         serviceScope.launch {
             try {
-                Log.d(TAG, "Generating AI response for $sender")
+                Log.d(TAG, "Generating AI response for $sender" + if (photoPath != null) " (with photo)" else "")
 
                 // Get conversation history
                 val conversationHistory = getConversationHistory(sender)
@@ -117,8 +120,12 @@ class SmsService : Service() {
                     return@launch
                 }
 
-                // Generate AI response
-                val aiResponse = generateClaudeResponse(conversationHistory, customInstructions)
+                // Generate AI response (with photo if present)
+                val aiResponse = if (photoPath != null) {
+                    generateClaudeResponseWithImage(conversationHistory, customInstructions, photoPath)
+                } else {
+                    generateClaudeResponse(conversationHistory, customInstructions)
+                }
 
                 if (aiResponse != null) {
                     // Store AI response in database
@@ -208,6 +215,106 @@ class SmsService : Service() {
 
         } catch (e: Exception) {
             Log.e(TAG, "Error calling Claude API: ${e.message}", e)
+            return@withContext null
+        }
+    }
+
+    private suspend fun generateClaudeResponseWithImage(
+        conversationHistory: String,
+        customInstructions: String,
+        photoPath: String
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            val sharedPrefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            val apiKey = sharedPrefs.getString("claude_api_key", "") ?: ""
+
+            if (apiKey.isEmpty()) {
+                Log.e(TAG, "Claude API key not set")
+                return@withContext null
+            }
+
+            // Read and encode photo
+            val photoFile = File(photoPath)
+            if (!photoFile.exists()) {
+                Log.e(TAG, "Photo file not found: $photoPath")
+                return@withContext generateClaudeResponse(conversationHistory, customInstructions)
+            }
+
+            val photoBytes = photoFile.readBytes()
+            val base64Photo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Base64.getEncoder().encodeToString(photoBytes)
+            } else {
+                android.util.Base64.encodeToString(photoBytes, android.util.Base64.NO_WRAP)
+            }
+
+            val url = URL(CLAUDE_API_URL)
+            val connection = url.openConnection() as HttpsURLConnection
+
+            connection.apply {
+                requestMethod = "POST"
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("x-api-key", apiKey)
+                setRequestProperty("anthropic-version", "2023-06-01")
+                connectTimeout = 30000
+                readTimeout = 30000
+            }
+
+            // Build request body with image
+            val prompt = buildPrompt(conversationHistory, customInstructions) +
+                "\n\nThe customer has sent a photo. Please analyze the image and provide relevant assistance based on what you see."
+
+            val requestBody = JSONObject().apply {
+                put("model", CLAUDE_MODEL)
+                put("max_tokens", 1000)
+                put("messages", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("type", "text")
+                                put("text", prompt)
+                            })
+                            put(JSONObject().apply {
+                                put("type", "image")
+                                put("source", JSONObject().apply {
+                                    put("type", "base64")
+                                    put("media_type", "image/jpeg")
+                                    put("data", base64Photo)
+                                })
+                            })
+                        })
+                    })
+                })
+            }
+
+            Log.d(TAG, "Sending request to Claude API with image")
+
+            connection.outputStream.use { os ->
+                os.write(requestBody.toString().toByteArray())
+            }
+
+            val responseCode = connection.responseCode
+            Log.d(TAG, "Claude API response code: $responseCode")
+
+            if (responseCode == 200) {
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                val jsonResponse = JSONObject(response)
+                val content = jsonResponse.getJSONArray("content")
+                if (content.length() > 0) {
+                    val textContent = content.getJSONObject(0).getString("text")
+                    Log.d(TAG, "AI Response (with image): $textContent")
+                    return@withContext textContent
+                }
+            } else {
+                val errorStream = connection.errorStream?.bufferedReader()?.use { it.readText() }
+                Log.e(TAG, "Claude API error: $errorStream")
+            }
+
+            return@withContext null
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error calling Claude API with image: ${e.message}", e)
             return@withContext null
         }
     }

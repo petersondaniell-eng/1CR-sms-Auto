@@ -14,7 +14,9 @@ import {
   ScrollView,
   Clipboard,
   AppState,
+  Image,
 } from 'react-native';
+import { launchCamera, launchImageLibrary, type ImagePickerResponse } from 'react-native-image-picker';
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -40,6 +42,7 @@ const ConversationDetailScreen = () => {
   const [sending, setSending] = useState(false);
   const [generatingAI, setGeneratingAI] = useState(false);
   const [workOrderModalVisible, setWorkOrderModalVisible] = useState(false);
+  const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
   const [workOrderData, setWorkOrderData] = useState({
     customerName: contactName || phoneNumber,
     phoneNumber: phoneNumber,
@@ -176,6 +179,68 @@ const ConversationDetailScreen = () => {
     }
   };
 
+  const handleAttachPhoto = () => {
+    Alert.alert(
+      'Attach Photo',
+      'Choose how to add a photo',
+      [
+        {
+          text: 'Take Photo',
+          onPress: () => {
+            launchCamera(
+              {
+                mediaType: 'photo',
+                quality: 0.8,
+                saveToPhotos: false,
+              },
+              handlePhotoResponse
+            );
+          },
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: () => {
+            launchImageLibrary(
+              {
+                mediaType: 'photo',
+                quality: 0.8,
+                selectionLimit: 1,
+              },
+              handlePhotoResponse
+            );
+          },
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const handlePhotoResponse = (response: ImagePickerResponse) => {
+    if (response.didCancel) {
+      console.log('User cancelled photo picker');
+      return;
+    }
+
+    if (response.errorCode) {
+      console.error('Photo picker error:', response.errorMessage);
+      Alert.alert('Error', 'Failed to select photo');
+      return;
+    }
+
+    if (response.assets && response.assets.length > 0) {
+      const photo = response.assets[0];
+      console.log('Photo selected:', photo.uri);
+      setSelectedPhotoUri(photo.uri || null);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setSelectedPhotoUri(null);
+  };
+
   const handleCreateWorkOrder = () => {
     // Extract information from conversation using simple pattern matching
     const conversationText = messages.map(m => m.message_text).join(' ');
@@ -263,9 +328,17 @@ ${conversationHistory}
             {formatTimestamp(item.timestamp)}
           </Text>
         </View>
-        <Text style={styles.messageText}>{item.message_text}</Text>
+        {item.message_text && (
+          <Text style={styles.messageText}>{item.message_text}</Text>
+        )}
         {item.photo_path && (
-          <Text style={styles.photoIndicator}>📷 Photo attached</Text>
+          <TouchableOpacity onPress={() => Alert.alert('Photo', `Photo path: ${item.photo_path}`)}>
+            <Image
+              source={{ uri: `file://${item.photo_path}` }}
+              style={styles.messagePhoto}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
         )}
       </View>
     );
@@ -301,33 +374,56 @@ ${conversationHistory}
         />
 
         <View style={styles.inputContainer}>
-          <TouchableOpacity
-            style={styles.aiButton}
-            onPress={handleGenerateAI}
-            disabled={generatingAI}>
-            <Text style={styles.aiButtonText}>
-              {generatingAI ? '⏳' : '🤖'}
-            </Text>
-          </TouchableOpacity>
+          {selectedPhotoUri && (
+            <View style={styles.photoPreviewContainer}>
+              <Image
+                source={{ uri: selectedPhotoUri }}
+                style={styles.photoPreview}
+                resizeMode="cover"
+              />
+              <TouchableOpacity
+                style={styles.removePhotoButton}
+                onPress={handleRemovePhoto}>
+                <Text style={styles.removePhotoText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-          <TextInput
-            style={styles.textInput}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Type a message..."
-            placeholderTextColor={Colors.textLight}
-            multiline
-            maxLength={1000}
-          />
+          <View style={styles.inputRow}>
+            <TouchableOpacity
+              style={styles.photoButton}
+              onPress={handleAttachPhoto}>
+              <Text style={styles.photoButtonText}>📷</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
-            onPress={handleSend}
-            disabled={!inputText.trim() || sending}>
-            <Text style={styles.sendButtonText}>
-              {sending ? '...' : 'Send'}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.aiButton}
+              onPress={handleGenerateAI}
+              disabled={generatingAI}>
+              <Text style={styles.aiButtonText}>
+                {generatingAI ? '⏳' : '🤖'}
+              </Text>
+            </TouchableOpacity>
+
+            <TextInput
+              style={styles.textInput}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Type a message..."
+              placeholderTextColor={Colors.textLight}
+              multiline
+              maxLength={1000}
+            />
+
+            <TouchableOpacity
+              style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
+              onPress={handleSend}
+              disabled={!inputText.trim() || sending}>
+              <Text style={styles.sendButtonText}>
+                {sending ? '...' : 'Send'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
 
@@ -476,19 +572,62 @@ const styles = StyleSheet.create({
     color: Colors.text,
     lineHeight: 20,
   },
-  photoIndicator: {
-    fontSize: FontSizes.sm,
-    color: Colors.primary,
-    marginTop: Spacing.xs,
+  messagePhoto: {
+    width: 200,
+    height: 200,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
+    backgroundColor: Colors.background,
   },
   inputContainer: {
-    flexDirection: 'row',
     padding: Spacing.md,
     paddingBottom: Spacing.xl + Spacing.md,
     backgroundColor: Colors.cardBackground,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+  },
+  photoPreviewContainer: {
+    position: 'relative',
+    marginBottom: Spacing.sm,
+    alignSelf: 'flex-start',
+  },
+  photoPreview: {
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.background,
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.error || '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removePhotoText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  inputRow: {
+    flexDirection: 'row',
     alignItems: 'flex-end',
+  },
+  photoButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.sm,
+  },
+  photoButtonText: {
+    fontSize: 24,
   },
   aiButton: {
     width: 44,
